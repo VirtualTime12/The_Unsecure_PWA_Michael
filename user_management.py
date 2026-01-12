@@ -2,6 +2,19 @@ import sqlite3 as sql
 import time
 import random
 import bcrypt
+from cryptography.fernet import Fernet
+import os
+
+fernet = Fernet(os.environ["FERNET_KEY"])
+
+
+def encrypt(data: str) -> bytes:
+    return fernet.encrypt(data.encode())
+
+
+def decrypt(data: bytes) -> str:
+    return fernet.decrypt(data).decode()
+
 
 # def insertUser(username, password, DoB):
 #     con = sql.connect("database_files/database.db")
@@ -20,10 +33,12 @@ def insertUser(username, password, DoB):
 
     # Hash password
     hashed_pw = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
+    encrypted_dob = encrypt(DoB)
+    encrypted_username = encrypt(username)
 
     cur.execute(
         "INSERT INTO users (username, password, dateOfBirth) VALUES (?, ?, ?)",
-        (username, hashed_pw, DoB),
+        (encrypted_username, hashed_pw, encrypted_dob),
     )
     con.commit()
     con.close()
