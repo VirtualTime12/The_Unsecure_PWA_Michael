@@ -14,6 +14,7 @@ from validation import (
     safe_chars,
     valid_date,
     sanitise,
+    valid_password,
 )
 
 # Code snippet for logging a message
@@ -80,6 +81,12 @@ def signup():
         if not is_reasonable_length(password, 8, 250):
             return render_template(
                 "/signup.html", msg="Password must be at least 8 characters"
+            )
+
+        if not valid_password(password):
+            return render_template(
+                "/signup.html",
+                msg="Password must contain at least one uppercase, lowercase, digit, special character",
             )
 
         if not safe_chars(username):
