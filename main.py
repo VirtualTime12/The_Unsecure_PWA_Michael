@@ -5,6 +5,14 @@ from flask import redirect
 from flask_cors import CORS
 import user_management as dbHandler
 
+from validation import (
+    is_present,
+    is_reasonable_length,
+    safe_chars,
+    valid_date,
+    sanitise,
+)
+
 # Code snippet for logging a message
 # app.logger.critical("message")
 
@@ -13,14 +21,28 @@ app = Flask(__name__)
 CORS(app)
 
 
-@app.route("/success.html", methods=["POST", "GET", "PUT", "PATCH", "DELETE"])
+@app.route("/success.html", methods=["POST", "GET"])
 def addFeedback():
     if request.method == "GET" and request.args.get("url"):
         url = request.args.get("url", "")
         return redirect(url, code=302)
     if request.method == "POST":
-        feedback = request.form["feedback"]
-        dbHandler.insertFeedback(feedback)
+        feedback = request.form.get("feedback", "")
+
+        if not is_present(feedback):
+            return render_template(
+                "/success.html", state=True, msg="Feedback required to submit"
+            )
+
+        if not is_reasonable_length(feedback, 1, 1000):
+            return render_template(
+                "/success.html",
+                state=True,
+                msg="Feedback too long (Max 1000 characters)",
+            )
+
+        safe_feedback = sanitise(feedback)
+        dbHandler.insertFeedback(safe_feedback)
         dbHandler.listFeedback()
         return render_template("/success.html", state=True, value="Back")
     else:
@@ -28,15 +50,37 @@ def addFeedback():
         return render_template("/success.html", state=True, value="Back")
 
 
-@app.route("/signup.html", methods=["POST", "GET", "PUT", "PATCH", "DELETE"])
+@app.route("/signup.html", methods=["POST", "GET"])
 def signup():
     if request.method == "GET" and request.args.get("url"):
         url = request.args.get("url", "")
         return redirect(url, code=302)
     if request.method == "POST":
-        username = request.form["username"]
-        password = request.form["password"]
-        DoB = request.form["dob"]
+        username = request.form.get("username", "")
+        password = request.form.get("password", "")
+        DoB = request.form.get("dob", "")
+
+        if not is_present(username) or not is_present(password) or not is_present(DoB):
+            return render_template("/signup.html", msg="All areas must be filled")
+
+        if not is_reasonable_length(username, 3, 100):
+            return render_template("/signup.html", msg="Username unreasonable length")
+
+        if not is_reasonable_length(password, 8, 250):
+            return render_template(
+                "/signup.html", msg="Password must be at least 8 characters"
+            )
+
+        if not safe_chars(username):
+            return render_template(
+                "/signup.html", msg="Username contains invalid characters"
+            )
+
+        if not valid_date(DoB):
+            return render_template(
+                "/signup.html", msg="Invalid date format. Must be in DD/MM/YYYY"
+            )
+
         dbHandler.insertUser(username, password, DoB)
         return render_template("/index.html")
     else:
@@ -55,16 +99,23 @@ def home():
         msg = request.args.get("msg", "")
         return render_template("/index.html", msg=msg)
     elif request.method == "POST":
-        username = request.form["username"]
-        password = request.form["password"]
+        username = request.form.get("username", "")
+        password = request.form.get("password", "")
         isLoggedIn = dbHandler.retrieveUsers(username, password)
+
+        if not is_present(username) or not is_present(password):
+            return render_template("/index.html", msg="Invalid Login")
+
+        if not safe_chars(username):
+            return render_template("index.html", msg="Invalid Login")
+
         if isLoggedIn:
             dbHandler.listFeedback()
             return render_template("/success.html", value=username, state=isLoggedIn)
-        else:
-            return render_template("/index.html")
-    else:
-        return render_template("/index.html")
+
+        return render_template("/index.html", msg="Invalid Login")
+
+    return render_template("/index.html")
 
 
 if __name__ == "__main__":
