@@ -4,6 +4,11 @@ import random
 import bcrypt
 from cryptography.fernet import Fernet
 import os
+import html
+import threading
+
+visitor_lock = threading.Lock()
+feedback_lock = threading.Lock()
 
 fernet = Fernet(os.environ["FERNET_KEY"])
 
@@ -14,17 +19,6 @@ def encrypt(data: str) -> bytes:
 
 def decrypt(data: bytes) -> str:
     return fernet.decrypt(data).decode()
-
-
-# def insertUser(username, password, DoB):
-#     con = sql.connect("database_files/database.db")
-#     cur = con.cursor()
-#     cur.execute(
-#         "INSERT INTO users (username,password,dateOfBirth) VALUES (?,?,?)",
-#         (username, password, DoB),
-#     )
-#     con.commit()
-#     con.close()
 
 
 def insertUser(username, password, DoB):
@@ -44,31 +38,6 @@ def insertUser(username, password, DoB):
     con.close()
 
 
-# def retrieveUsers(username, password):
-#     con = sql.connect("database_files/database.db")
-#     cur = con.cursor()
-#     cur.execute(f"SELECT * FROM users WHERE username = '{username}'")
-#     if cur.fetchone() == None:
-#         con.close()
-#         return False
-#     else:
-#         cur.execute(f"SELECT * FROM users WHERE password = '{password}'")
-#         # Plain text log of visitor count as requested by Unsecure PWA management
-#         with open("visitor_log.txt", "r") as file:
-#             number = int(file.read().strip())
-#             number += 1
-#         with open("visitor_log.txt", "w") as file:
-#             file.write(str(number))
-#         # Simulate response time of heavy app for testing purposes
-#         time.sleep(random.randint(80, 90) / 1000)
-#         if cur.fetchone() == None:
-#             con.close()
-#             return False
-#         else:
-#             con.close()
-#             return True
-
-
 def retrieveUsers(username, password):
     con = sql.connect("database_files/database.db")
     cur = con.cursor()
@@ -85,14 +54,20 @@ def retrieveUsers(username, password):
 
     # Check password
     if bcrypt.checkpw(password.encode("utf-8"), stored_hash):
-        # Visitor counter (unchanged)
-        with open("visitor_log.txt", "r") as file:
-            number = int(file.read().strip())
-            number += 1
-        with open("visitor_log.txt", "w") as file:
-            file.write(str(number))
+        # Visitor counter now inputting into database instead of file
+        try:
+            with visitor_lock:
+                cur.execute(
+                    "CREATE TABLE IF NOT EXISTS visitor_counter (id INTEGER PRIMARY KEY CHECK (id=1), count INTEGER NOT NULL)"
+                )
+                cur.execute("UPDATE visitor_counter SET count = count + 1 WHERE id = 1")
+                if cur.rowcount == 0:
+                    cur.execute("INSERT INTO visitor_counter (id, count) VALUES (1, 1)")
+                con.commit()
+        except Exception:
+            con.rollback()
 
-        time.sleep(random.randint(80, 90) / 1000)
+        # time.sleep(random.randint(80, 90) / 1000)
         con.close()
         return True
     else:
@@ -113,9 +88,15 @@ def listFeedback():
     cur = con.cursor()
     data = cur.execute("SELECT * FROM feedback").fetchall()
     con.close()
-    f = open("templates/partials/success_feedback.html", "w")
-    for row in data:
-        f.write("<p>\n")
-        f.write(f"{row[1]}\n")
-        f.write("</p>\n")
+
+    out_dir = "templates/partials"
+    os.makedirs(out_dir, exist_ok=True)
+    final_path = os.path.join(out_dir, "success_feedback.html")
+
+    with feedback_lock:
+        with open(final_path, "w", encoding="utf-8") as f:
+            for row in data:
+                f.write("<p>\n")
+                f.write(html.escape(str(row[1])) + "\n")
+                f.write("</p>\n")
     f.close()
