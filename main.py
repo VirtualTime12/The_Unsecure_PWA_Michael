@@ -6,6 +6,7 @@ from flask_cors import CORS
 import user_management as dbHandler
 from flask_wtf.csrf import CSRFProtect
 import os
+from urllib.parse import urlparse, urljoin
 
 
 from validation import (
@@ -33,10 +34,21 @@ app.config.update(
 )
 
 
+def is_safe_url(target: str) -> bool:
+    host_url = request.host_url
+    ref_url = urlparse(host_url)
+    test_url = urlparse(urljoin(host_url, target))
+    return (test_url.scheme in ("http", "https")) and (
+        ref_url.netloc == test_url.netloc
+    )
+
+
 @app.route("/success.html", methods=["POST", "GET"])
 def addFeedback():
     if request.method == "GET" and request.args.get("url"):
         url = request.args.get("url", "")
+        if not is_safe_url(url):
+            return render_template("/index.html", msg="Invalid Redirect URL")
         return redirect(url, code=302)
     if request.method == "POST":
         feedback = request.form.get("feedback", "")
@@ -66,6 +78,8 @@ def addFeedback():
 def signup():
     if request.method == "GET" and request.args.get("url"):
         url = request.args.get("url", "")
+        if not is_safe_url(url):
+            return render_template("/index.html", msg="Invalid Redirect URL")
         return redirect(url, code=302)
     if request.method == "POST":
         username = request.form.get("username", "")
@@ -111,6 +125,8 @@ def home():
     # Simple Dynamic menu
     if request.method == "GET" and request.args.get("url"):
         url = request.args.get("url", "")
+        if not is_safe_url(url):
+            return render_template("/index.html", msg="Invalid Redirect URL")
         return redirect(url, code=302)
     # Pass message to front end
     elif request.method == "GET":
