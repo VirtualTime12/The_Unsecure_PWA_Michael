@@ -4,6 +4,9 @@ from flask import request
 from flask import redirect
 from flask_cors import CORS
 import user_management as dbHandler
+from flask_wtf.csrf import CSRFProtect
+import os
+
 
 from validation import (
     is_present,
@@ -18,7 +21,15 @@ from validation import (
 
 app = Flask(__name__)
 # Enable CORS to allow cross-origin requests (needed for CSRF demo in Codespaces)
-CORS(app)
+# CORS(app)
+app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY")
+csrf = CSRFProtect(app)
+
+app.config.update(
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_HTTPONLY=True,
+)
 
 
 @app.route("/success.html", methods=["POST", "GET"])
@@ -87,7 +98,7 @@ def signup():
         return render_template("/signup.html")
 
 
-@app.route("/index.html", methods=["POST", "GET", "PUT", "PATCH", "DELETE"])
+@app.route("/index.html", methods=["POST", "GET"])
 @app.route("/", methods=["POST", "GET"])
 def home():
     # Simple Dynamic menu
@@ -122,4 +133,4 @@ if __name__ == "__main__":
     app.config["TEMPLATES_AUTO_RELOAD"] = True
     app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
     app.run(debug=False, host="0.0.0.0", port=5000)
-    # , ssl_context="adhoc")
+    # ssl_context="adhoc")
