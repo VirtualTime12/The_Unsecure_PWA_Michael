@@ -1,23 +1,22 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <title>Verify 2FA</title>
-  </head>
-  <body>
-    <h1>Enter Authenticator Code</h1>
-    <form method="POST">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-      <input
-        type="text"
-        name="code"
-        placeholder="6-digit code"
-        maxlength="6"
-        required
-      />
-      <button type="submit">Verify</button>
-    </form>
-    {% if msg %}
-    <p>{{ msg }}</p>
-    {% endif %}
-  </body>
-</html>
+{% extends 'layout.html' %} {% block content %}
+<h1>Enter Authenticator Code</h1>
+<form method="POST">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+  <div class="input__wrapper">
+    <input
+      style="max-width: 300px"
+      type="text"
+      name="code"
+      placeholder="6-digit code"
+      maxlength="6"
+      class="input__field"
+      required
+    />
+  </div>
+  <div class="input__wrapper">
+    <input type="submit" class="btn" value="Submit" />
+  </div>
+</form>
+{% if msg %}
+<p>{{ msg }}</p>
+{% endif %} {% endblock %}

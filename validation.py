@@ -1,9 +1,23 @@
 import html
 from datetime import datetime
+import sqlite3 as sql
 
 
 def is_present(value):
     return value is not None and value.strip() != ""
+
+
+def unique_username(value):
+    con = sql.connect("database_files/database.db")
+    cur = con.cursor()
+
+    cur.execute("SELECT username FROM users WHERE username = ?", (value,))
+    if cur.fetchone():
+        con.close()
+        return False
+    else:
+        con.close()
+        return True
 
 
 def is_reasonable_length(value, min, max):

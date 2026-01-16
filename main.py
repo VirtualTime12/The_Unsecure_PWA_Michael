@@ -21,6 +21,7 @@ from validation import (
     valid_date,
     sanitise,
     valid_password,
+    unique_username,
 )
 
 # Code snippet for logging a message
@@ -172,6 +173,9 @@ def signup():
                 "/signup.html", msg="Password must be at least 8 characters"
             )
 
+        if not unique_username(username):
+            return render_template("/signup.html", msg="Username already taken")
+
         if not valid_password(password):
             return render_template(
                 "/signup.html",
@@ -192,6 +196,12 @@ def signup():
         return render_template("/index.html")
     else:
         return render_template("/signup.html")
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect("/")
 
 
 @app.route("/index.html", methods=["POST", "GET"])
