@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Setup 2FA</title>
+  </head>
+  <body>
+    <h1>Setup Two-Factor Authentication</h1>
+    <p>Scan this QR code with Google Authenticator:</p>
+    <img src="data:image/png;base64,{{ qr_code }}" alt="QR Code" />
+    <p>Or enter this code manually: <code>{{ secret }}</code></p>
+
+    <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <input
+        type="text"
+        name="code"
+        placeholder="6-digit code"
+        maxlength="6"
+        required
+      />
+      <button type="submit">Verify & Enable 2FA</button>
+    </form>
+  </body>
+</html>

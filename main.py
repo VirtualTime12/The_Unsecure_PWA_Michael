@@ -2,11 +2,16 @@ from flask import Flask
 from flask import render_template
 from flask import request
 from flask import redirect
+from flask import session
 from flask_cors import CORS
 import user_management as dbHandler
 from flask_wtf.csrf import CSRFProtect
 import os
 from urllib.parse import urlparse, urljoin
+import pyotp
+import qrcode
+from io import BytesIO
+import base64
 
 
 from validation import (
@@ -41,6 +46,76 @@ def is_safe_url(target: str) -> bool:
     return (test_url.scheme in ("http", "https")) and (
         ref_url.netloc == test_url.netloc
     )
+
+
+@app.route("/setup2fa.html", methods=["GET", "POST"])
+def setup_2fa():
+    if "username" not in session:
+        return redirect("/")
+
+    if request.method == "GET":
+        username = session["username"]
+        # Generate new secret
+        secret = pyotp.random_base32()
+        session["temp_secret"] = secret
+
+        # Generate QR code
+        totp = pyotp.TOTP(secret)
+        qr = qrcode.QRCode()
+        qr.add_data(totp.provisioning_uri(name=username, issuer_name="UnsecurePWA"))
+        qr.make()
+
+        img = qr.make_image()
+        buffer = BytesIO()
+        img.save(buffer, format="PNG")
+        buffer.seek(0)
+        qr_code_b64 = base64.b64encode(buffer.getvalue()).decode()
+        return render_template("/setup2fa.html", qr_code=qr_code_b64, secret=secret)
+
+    elif request.method == "POST":
+        code = request.form.get("code", "")
+        secret = session.get("temp_secret", "")
+        username = session["username"]
+
+        if not code or not secret:
+            return render_template("/setup2fa.html", msg="Invalid request")
+
+        totp = pyotp.TOTP(secret)
+        if totp.verify(code):
+            dbHandler.saveTotp(username, secret)
+            session.pop("temp_secret", None)
+            return render_template("/success.html", msg="2FA enabled successfully")
+        else:
+            return render_template("/setup2FA.html", msg="Invalid code", secret=secret)
+
+
+@app.route("/verify2fa.html", methods=["POST", "GET"])
+def verify_2fa():
+    if request.method == "GET":
+        return render_template("/verify2fa.html")
+
+    elif request.method == "POST":
+        username = session.get("temp_username", "")
+        code = request.form.get("code", "")
+
+        if not username or not code:
+            return render_template("/verify2fa.html", msg="Missing username or code")
+
+        # Retrieve stored secret from database
+        secret = dbHandler.getTotp(username)
+
+        if not secret:
+            return render_template("/index.html", msg="2FA not enabled for this user")
+
+        totp = pyotp.TOTP(secret)
+        if totp.verify(code):
+            # Verification successful
+            session["username"] = username
+            session.pop("temp_username", None)
+            dbHandler.listFeedback()
+            return render_template("/success.html", value=username, state=True)
+        else:
+            return render_template("/verify2fa.html", msg="Invalid code")
 
 
 @app.route("/success.html", methods=["POST", "GET"])
@@ -135,7 +210,6 @@ def home():
     elif request.method == "POST":
         username = request.form.get("username", "")
         password = request.form.get("password", "")
-        isLoggedIn = dbHandler.retrieveUsers(username, password)
 
         if not is_present(username) or not is_present(password):
             return render_template("/index.html", msg="Invalid Login")
@@ -143,9 +217,17 @@ def home():
         if not safe_chars(username):
             return render_template("index.html", msg="Invalid Login")
 
+        isLoggedIn = dbHandler.retrieveUsers(username, password)
+
         if isLoggedIn:
-            dbHandler.listFeedback()
-            return render_template("/success.html", value=username, state=isLoggedIn)
+            # Check if user has 2FA enabled
+            if dbHandler.hasTotp(username):
+                session["temp_username"] = username
+                return redirect("/verify2fa.html")
+            else:
+                session["username"] = username
+                dbHandler.listFeedback()
+                return render_template("/success.html", value=username, state=True)
 
         return render_template("/index.html", msg="Invalid Login")
 

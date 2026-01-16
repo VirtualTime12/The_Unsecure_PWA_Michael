@@ -21,6 +21,43 @@ def decrypt(data: bytes) -> str:
     return fernet.decrypt(data).decode()
 
 
+def saveTotp(username, secret):
+    try:
+        con = sql.connect("database_files/database.db")
+        cur = con.cursor()
+
+        cur.execute(
+            "UPDATE users SET totp_secret = ? WHERE username = ?",
+            (secret, username),
+        )
+
+        con.commit()
+        con.close()
+        return True
+    except Exception:
+        return False
+
+
+def getTotp(username):
+    try:
+        con = sql.connect("database_files/database.db")
+        cur = con.cursor()
+
+        cur.execute("SELECT totp_secret FROM users WHERE username = ?", (username,))
+        result = cur.fetchone()
+        con.close()
+        if result and result[0]:
+            return result[0]
+        return None
+    except Exception:
+        return None
+
+
+def hasTotp(username):
+    secret = getTotp(username)
+    return secret is not None and secret != ""
+
+
 def insertUser(username, password, DoB):
     con = sql.connect("database_files/database.db")
     cur = con.cursor()
@@ -28,11 +65,10 @@ def insertUser(username, password, DoB):
     # Hash password
     hashed_pw = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
     encrypted_dob = encrypt(DoB)
-    encrypted_username = encrypt(username)
 
     cur.execute(
         "INSERT INTO users (username, password, dateOfBirth) VALUES (?, ?, ?)",
-        (encrypted_username, hashed_pw, encrypted_dob),
+        (username, hashed_pw, encrypted_dob),
     )
     con.commit()
     con.close()
