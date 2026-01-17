@@ -1,32 +1,18 @@
-from flask import Flask
-from flask import render_template
-from flask import request
-from flask import redirect
-from flask import session
-from flask_cors import CORS
+from flask import Flask, render_template, request, redirect, session
 import user_management as dbHandler
 from flask_wtf.csrf import CSRFProtect
-import os
 from urllib.parse import urlparse, urljoin
 import pyotp
 import qrcode
 from io import BytesIO
 import base64
-
-
-from validation import (
-    is_present,
-    is_reasonable_length,
-    safe_chars,
-    valid_date,
-    sanitise,
-    valid_password,
-    unique_username,
-)
+import validation as valid
+import os
 
 # Code snippet for logging a message
 # app.logger.critical("message")
 
+# from flask_cors import CORS
 app = Flask(__name__)
 # Enable CORS to allow cross-origin requests (needed for CSRF demo in Codespaces)
 # CORS(app)
@@ -71,7 +57,9 @@ def setup_2fa():
         img.save(buffer, format="PNG")
         buffer.seek(0)
         qr_code_b64 = base64.b64encode(buffer.getvalue()).decode()
-        return render_template("/setup2fa.html", qr_code=qr_code_b64, secret=secret)
+        return render_template(
+            "/setup2fa.html", qr_code=qr_code_b64, secret=secret, state=True
+        )
 
     elif request.method == "POST":
         code = request.form.get("code", "")
@@ -79,15 +67,19 @@ def setup_2fa():
         username = session["username"]
 
         if not code or not secret:
-            return render_template("/setup2fa.html", msg="Invalid request")
+            return render_template("/setup2fa.html", msg="Invalid request", state=True)
 
         totp = pyotp.TOTP(secret)
         if totp.verify(code):
             dbHandler.saveTotp(username, secret)
             session.pop("temp_secret", None)
-            return render_template("/success.html", msg="2FA enabled successfully")
+            return render_template(
+                "/home.html", msg="2FA enabled successfully", state=True
+            )
         else:
-            return render_template("/setup2FA.html", msg="Invalid code", secret=secret)
+            return render_template(
+                "/setup2FA.html", msg="Invalid code", secret=secret, state=True
+            )
 
 
 @app.route("/verify2fa.html", methods=["POST", "GET"])
@@ -114,7 +106,7 @@ def verify_2fa():
             session["username"] = username
             session.pop("temp_username", None)
             dbHandler.listFeedback()
-            return render_template("/success.html", value=username, state=True)
+            return redirect("/home.html")
         else:
             return render_template("/verify2fa.html", msg="Invalid code")
 
@@ -129,19 +121,19 @@ def addFeedback():
     if request.method == "POST":
         feedback = request.form.get("feedback", "")
 
-        if not is_present(feedback):
+        if not valid.is_present(feedback):
             return render_template(
                 "/success.html", state=True, msg="Feedback required to submit"
             )
 
-        if not is_reasonable_length(feedback, 1, 1000):
+        if not valid.is_reasonable_length(feedback, 1, 1000):
             return render_template(
                 "/success.html",
                 state=True,
                 msg="Feedback too long (Max 1000 characters)",
             )
 
-        safe_feedback = sanitise(feedback)
+        safe_feedback = valid.sanitise(feedback)
         dbHandler.insertFeedback(safe_feedback)
         dbHandler.listFeedback()
         return render_template("/success.html", state=True, value="Back")
@@ -162,32 +154,36 @@ def signup():
         password = request.form.get("password", "")
         DoB = request.form.get("dob", "")
 
-        if not is_present(username) or not is_present(password) or not is_present(DoB):
+        if (
+            not valid.is_present(username)
+            or not valid.is_present(password)
+            or not valid.is_present(DoB)
+        ):
             return render_template("/signup.html", msg="All areas must be filled")
 
-        if not is_reasonable_length(username, 3, 100):
+        if not valid.is_reasonable_length(username, 3, 100):
             return render_template("/signup.html", msg="Username unreasonable length")
 
-        if not is_reasonable_length(password, 8, 250):
+        if not valid.is_reasonable_length(password, 8, 250):
             return render_template(
                 "/signup.html", msg="Password must be at least 8 characters"
             )
 
-        if not unique_username(username):
+        if not valid.unique_username(username):
             return render_template("/signup.html", msg="Username already taken")
 
-        if not valid_password(password):
+        if not valid.valid_password(password):
             return render_template(
                 "/signup.html",
                 msg="Password must contain at least one uppercase, lowercase, digit, special character",
             )
 
-        if not safe_chars(username):
+        if not valid.safe_chars(username):
             return render_template(
                 "/signup.html", msg="Username contains invalid characters"
             )
 
-        if not valid_date(DoB):
+        if not valid.valid_date(DoB):
             return render_template(
                 "/signup.html", msg="Invalid date format. Must be in DD/MM/YYYY"
             )
@@ -204,9 +200,20 @@ def logout():
     return redirect("/")
 
 
+@app.route("/home.html", methods=["GET"])
+def home():
+    if request.method == "GET" and request.args.get("url"):
+        url = request.args.get("url", "")
+        if not is_safe_url(url):
+            return render_template("/home.html", state=True, msg="Invalid Redirect URL")
+        return redirect(url, code=302)
+    else:
+        return render_template("/home.html", state=True)
+
+
 @app.route("/index.html", methods=["POST", "GET"])
 @app.route("/", methods=["POST", "GET"])
-def home():
+def login():
     # Simple Dynamic menu
     if request.method == "GET" and request.args.get("url"):
         url = request.args.get("url", "")
@@ -221,10 +228,10 @@ def home():
         username = request.form.get("username", "")
         password = request.form.get("password", "")
 
-        if not is_present(username) or not is_present(password):
+        if not valid.is_present(username) or not valid.is_present(password):
             return render_template("/index.html", msg="Invalid Login")
 
-        if not safe_chars(username):
+        if not valid.safe_chars(username):
             return render_template("index.html", msg="Invalid Login")
 
         isLoggedIn = dbHandler.retrieveUsers(username, password)
@@ -237,7 +244,9 @@ def home():
             else:
                 session["username"] = username
                 dbHandler.listFeedback()
-                return render_template("/success.html", value=username, state=True)
+                return render_template(
+                    "/home.html", value=valid.sanitise(username), state=True
+                )
 
         return render_template("/index.html", msg="Invalid Login")
 

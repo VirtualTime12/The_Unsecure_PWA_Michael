@@ -15,12 +15,14 @@
             <img src="static\images\logo.svg" alt="The unsecure website logo." />
             <h1>The Unsecure PWA</h1>
             <ul class="topnav">
-                <li><a href="logout">Home</a></li>
-                <li><a href="?url=/signup.html">Signup</a></li>
                 {% if state %}
-                    <li><a href="?url=/success.html">Success</a></li>
+                    <li><a href="home.html">Home</a></li>    
+                    <li><a href="success.html">Feedback</a></li>
                     <li><a href="logout">Logout</a></li>
-                    <li><a href="?url=/setup2fa.html">Setup 2FA</a></li>
+                    <li><a href="setup2fa.html">Setup 2FA</a></li>
+                {% else %}
+                    <li><a href="?url=/">Login</a></li>
+                    <li><a href="?url=/signup.html">Signup</a></li>
                 {% endif %}
             </ul>
         </nav>
