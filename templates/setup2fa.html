@@ -21,4 +21,6 @@
     <input type="submit" class="btn" value="Verify and Enable 2FA" />
   </div>
 </form>
-{% endblock %}
+{% if msg %}
+<p>{{ msg }}</p>
+{% endif %} {% endblock %}

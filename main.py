@@ -77,8 +77,23 @@ def setup_2fa():
                 "/home.html", msg="2FA enabled successfully", state=True
             )
         else:
+            totp = pyotp.TOTP(secret)
+            qr = qrcode.QRCode()
+            qr.add_data(totp.provisioning_uri(name=username, issuer_name="UnsecurePWA"))
+            qr.make()
+
+            img = qr.make_image()
+            buffer = BytesIO()
+            img.save(buffer, format="PNG")
+            buffer.seek(0)
+            qr_code_b64 = base64.b64encode(buffer.getvalue()).decode()
+
             return render_template(
-                "/setup2FA.html", msg="Invalid code", secret=secret, state=True
+                "/setup2fa.html",
+                msg="Invalid code",
+                secret=secret,
+                qr_code=qr_code_b64,
+                state=True,
             )
 
 
