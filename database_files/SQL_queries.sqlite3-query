@@ -12,6 +12,6 @@
 
 -- INSERT INTO feedback(feedback) VALUES ("Tempe High School Students WERE HERE!");
 
-DELETE FROM users WHERE id > 23;
+DELETE FROM users WHERE id > 41;
 DELETE FROM feedback WHERE id > 20;
-ALTER TABLE users ADD COLUMN totp_secret TEXT DEFAULT NULL;
+-- ALTER TABLE users ADD COLUMN totp_secret TEXT DEFAULT NULL;

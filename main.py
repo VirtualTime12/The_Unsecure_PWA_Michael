@@ -128,6 +128,9 @@ def verify_2fa():
 
 @app.route("/success.html", methods=["POST", "GET"])
 def addFeedback():
+    if "username" not in session:
+        return redirect("/")
+
     if request.method == "GET" and request.args.get("url"):
         url = request.args.get("url", "")
         if not is_safe_url(url):
@@ -169,11 +172,7 @@ def signup():
         password = request.form.get("password", "")
         DoB = request.form.get("dob", "")
 
-        if (
-            not valid.is_present(username)
-            or not valid.is_present(password)
-            or not valid.is_present(DoB)
-        ):
+        if not valid.is_present(username) or not valid.is_present(password):
             return render_template("/signup.html", msg="All areas must be filled")
 
         if not valid.is_reasonable_length(username, 3, 100):
@@ -198,7 +197,7 @@ def signup():
                 "/signup.html", msg="Username contains invalid characters"
             )
 
-        if not valid.valid_date(DoB):
+        if valid.is_present(DoB) and not valid.valid_date(DoB):
             return render_template(
                 "/signup.html", msg="Invalid date format. Must be in DD/MM/YYYY"
             )
@@ -217,6 +216,9 @@ def logout():
 
 @app.route("/home.html", methods=["GET"])
 def home():
+    if "username" not in session:
+        return redirect("/")
+
     if request.method == "GET" and request.args.get("url"):
         url = request.args.get("url", "")
         if not is_safe_url(url):

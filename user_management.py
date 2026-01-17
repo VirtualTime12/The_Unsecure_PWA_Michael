@@ -26,9 +26,11 @@ def saveTotp(username, secret):
         con = sql.connect("database_files/database.db")
         cur = con.cursor()
 
+        encrypted_secret = encrypt(secret)
+
         cur.execute(
             "UPDATE users SET totp_secret = ? WHERE username = ?",
-            (secret, username),
+            (encrypted_secret, username),
         )
 
         con.commit()
@@ -47,7 +49,7 @@ def getTotp(username):
         result = cur.fetchone()
         con.close()
         if result and result[0]:
-            return result[0]
+            return decrypt(result[0])
         return None
     except Exception:
         return None
